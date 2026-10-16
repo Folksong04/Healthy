@@ -89,6 +89,39 @@
   .range button.active { background: var(--primary); color: #fff; }
   button, input { -webkit-tap-highlight-color: transparent; }
 
+  body.locked header, body.locked main { display: none; }
+  body:not(.locked) .lock { display: none; }
+  .lock {
+    position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #2f80ed, #56ccf2); padding: 20px;
+  }
+  .lock-card {
+    background: #fff; border-radius: 24px; padding: 28px 28px 32px; width: 100%; max-width: 360px;
+    text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.2);
+  }
+  .lock-cat { width: 160px; height: 160px; margin-top: -90px; filter: drop-shadow(0 6px 8px rgba(0,0,0,.2)); }
+  .lock-card h2 { margin: 4px 0 4px; font-size: 24px; }
+  .lock-card p { margin: 0 0 20px; color: var(--muted); }
+  .pin-box { position: relative; width: 240px; margin: 0 auto; }
+  .pin-dots { display: flex; justify-content: space-between; }
+  .pin-dots span {
+    width: 48px; height: 56px; border: 2px solid var(--line); border-radius: 12px; position: relative; transition: .15s;
+  }
+  .pin-dots span.filled { border-color: var(--primary); }
+  .pin-dots span.filled::after {
+    content: ''; position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px;
+    border-radius: 50%; background: var(--primary);
+  }
+  #pinInput {
+    position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px;
+    border: none; background: transparent; color: transparent; caret-color: transparent;
+  }
+  #pinMsg { min-height: 24px; margin-top: 16px; color: var(--bad); font-size: 16px; }
+  .shake { animation: shake .4s; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-10px); } 40%, 80% { transform: translateX(10px); }
+  }
+
   header { position: relative; }
   .cat-wrap {
     position: absolute; top: 6px; right: 20px; width: 150px; height: 150px; z-index: 5;
@@ -184,7 +217,21 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 </head>
-<body>
+<body class="locked">
+
+<div class="lock" id="lock">
+  <div class="lock-card">
+    <img src="cat.png" alt="" class="lock-cat">
+    <h2>บันทึกสุขภาพคุณย่า</h2>
+    <p>กรุณาใส่รหัส 4 หลัก</p>
+    <div class="pin-box">
+      <div class="pin-dots"><span></span><span></span><span></span><span></span></div>
+      <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+        autocomplete="off" aria-label="รหัส 4 หลัก">
+    </div>
+    <div id="pinMsg"></div>
+  </div>
+</div>
 
 <header>
   <div class="cat-wrap" id="cat">
@@ -266,11 +313,42 @@
 <div id="toast"></div>
 
 <script>
-  const STORE_KEY = 'grandmaHealthData';
-  const START_KEY = 'grandmaHealthStart';
+  const API_URL = 'https://script.google.com/macros/s/AKfycbxMZ7KqVpiy1GtsXvVjr43BXGRQK0OhwK0HcpwChGM3bHJvoouPvN5wmZLRY2yQ9lzWzQ/exec';
+  const POLL_MS = 15000;
+
   const FIELDS = ['bp', 'am', 'pm'];
   const LABELS = { bp: 'ความดัน (mmHg)', am: 'DTX เช้า (ก่อนอาหาร)', pm: 'DTX เย็น (ก่อนอาหาร)' };
-  const data = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+  let data = {}, limits = {}, startKey = '', pin = sessionStorage.getItem('grandmaPin') || '';
+
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+  async function api(action, extra = {}) {
+    const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ pin, action, ...extra }) });
+    const json = await res.json();
+    if (json.ok) {
+      data = json.data || {};
+      limits = json.limits || {};
+      startKey = json.start || '';
+    }
+    return json;
+  }
+
+  const editing = () => document.activeElement?.tagName === 'INPUT' && !document.getElementById('lock').contains(document.activeElement);
+
+  function applyState() {
+    startInput.value = startKey || todayKey;
+    document.querySelectorAll('[data-lim]').forEach(i => { if (i !== document.activeElement) i.value = limits[i.dataset.lim] ?? ''; });
+    render();
+  }
+
+  async function refresh() {
+    if (document.body.classList.contains('locked') || document.hidden || editing()) return;
+    try {
+      const r = await api('load');
+      if (r.ok && !editing()) applyState();
+      else if (r.error === 'pin') lock();
+    } catch (e) { /* offline: try again next round */ }
+  }
 
   const pad = n => String(n).padStart(2, '0');
   const keyOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -280,16 +358,27 @@
   const thaiTime = d => d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 
   let todayKey = keyOf(new Date());
-  if (!localStorage.getItem(START_KEY)) localStorage.setItem(START_KEY, todayKey);
   const startInput = document.getElementById('startDate');
-  startInput.value = localStorage.getItem(START_KEY);
   startInput.max = todayKey;
-  startInput.addEventListener('change', () => {
+  startInput.addEventListener('change', async () => {
     if (!startInput.value) return;
-    localStorage.setItem(START_KEY, startInput.value);
+    startKey = startInput.value;
     page = 1;
     render();
+    await save('start', { start: startKey }, 'บันทึกวันเริ่มแล้ว');
   });
+
+  async function save(action, extra, okMsg) {
+    try {
+      const r = await api(action, extra);
+      if (r.error === 'pin') return lock();
+      if (!r.ok) throw new Error(r.error);
+      showToast(okMsg);
+      return r;
+    } catch (e) {
+      showToast('บันทึกไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่');
+    }
+  }
 
   function tick() {
     const now = new Date();
@@ -302,20 +391,15 @@
     }
   }
 
-  const LIMIT_KEY = 'grandmaHealthLimits';
-  const limits = JSON.parse(localStorage.getItem(LIMIT_KEY) || '{}');
-  document.querySelectorAll('[data-lim]').forEach(i => {
-    i.value = limits[i.dataset.lim] ?? '';
-    i.inputMode = 'numeric';
-  });
-  document.querySelector('thead').addEventListener('change', e => {
+  document.querySelectorAll('[data-lim]').forEach(i => i.inputMode = 'numeric');
+  document.querySelector('thead').addEventListener('change', async e => {
     const k = e.target.dataset.lim;
     if (!k) return;
     const v = num(e.target.value.trim());
     if (v == null) { delete limits[k]; e.target.value = ''; } else limits[k] = v;
-    localStorage.setItem(LIMIT_KEY, JSON.stringify(limits));
     render();
-    showToast('บันทึกช่วงค่าที่ควรเป็นแล้ว');
+    await save('limits', { limits }, 'บันทึกช่วงค่าที่ควรเป็นแล้ว');
+    render();
   });
 
   function inRange(v, lo, hi) {
@@ -365,10 +449,10 @@
         FIELDS.map(f => {
           const e = rec[f] || {};
           return `<td data-label="${LABELS[f]}">
-            <input data-date="${k}" data-field="${f}" value="${e.v || ''}"
+            <input data-date="${k}" data-field="${f}" value="${esc(e.v)}"
               inputmode="${f === 'bp' ? 'text' : 'numeric'}" placeholder="${f === 'bp' ? '120/80' : '100'}"
               class="${level(f, e.v)}">
-            <span class="stamp">${e.t ? 'บันทึกเวลา ' + thaiTime(new Date(e.t)) + ' น.' : ''}</span>
+            <span class="stamp">${stampText(e)}</span>
           </td>`;
         }).join('');
       tbody.appendChild(tr);
@@ -383,19 +467,18 @@
     updateCharts();
   }
 
-  document.getElementById('rows').addEventListener('change', e => {
+  const stampText = e => (e && e.t ? 'บันทึกเวลา ' + thaiTime(new Date(e.t)) + ' น.' : '');
+
+  document.getElementById('rows').addEventListener('change', async e => {
     const input = e.target;
     if (input.tagName !== 'INPUT') return;
     const { date, field } = input.dataset;
     const value = input.value.trim();
-    data[date] = data[date] || {};
-    if (value) data[date][field] = { v: value, t: new Date().toISOString() };
-    else delete data[date][field];
-    localStorage.setItem(STORE_KEY, JSON.stringify(data));
-    input.className = level(field, value);
     const stamp = input.nextElementSibling;
-    stamp.textContent = value ? 'บันทึกเวลา ' + thaiTime(new Date()) + ' น.' : '';
-    showToast(value ? 'บันทึกเรียบร้อย' : 'ลบค่าแล้ว');
+    input.className = level(field, value);
+    stamp.textContent = 'กำลังบันทึก...';
+    const r = await save('set', { date, field, value }, value ? 'บันทึกเรียบร้อย' : 'ลบค่าแล้ว');
+    stamp.textContent = r ? stampText(data[date]?.[field]) : 'ยังไม่ได้บันทึก';
     updateCharts();
   });
 
@@ -410,7 +493,8 @@
   function allDays() {
     const days = [];
     const end = parseKey(todayKey);
-    for (let d = parseKey(localStorage.getItem(START_KEY)); d <= end; d.setDate(d.getDate() + 1)) days.push(keyOf(d));
+    const start = startKey && startKey <= todayKey ? startKey : todayKey;
+    for (let d = parseKey(start); d <= end; d.setDate(d.getDate() + 1)) days.push(keyOf(d));
     return days;
   }
 
@@ -587,9 +671,71 @@
     }
   });
 
+  const pinInput = document.getElementById('pinInput');
+  const pinMsg = document.getElementById('pinMsg');
+  const pinDots = document.querySelectorAll('.pin-dots span');
+
+  function lock(msg = '') {
+    pin = '';
+    sessionStorage.removeItem('grandmaPin');
+    document.body.classList.add('locked');
+    pinInput.value = '';
+    updateDots();
+    pinMsg.textContent = msg;
+    setTimeout(() => pinInput.focus(), 50);
+  }
+
+  function updateDots() {
+    pinDots.forEach((d, i) => d.classList.toggle('filled', i < pinInput.value.length));
+  }
+
+  async function migrateLocal() {
+    const old = JSON.parse(localStorage.getItem('grandmaHealthData') || 'null');
+    if (!old || Object.keys(data).length) return;
+    const r = await api('import', {
+      data: old,
+      limits: JSON.parse(localStorage.getItem('grandmaHealthLimits') || '{}'),
+      start: localStorage.getItem('grandmaHealthStart') || ''
+    });
+    if (r.ok) ['grandmaHealthData', 'grandmaHealthLimits', 'grandmaHealthStart'].forEach(k => localStorage.removeItem(k));
+  }
+
+  async function login(code) {
+    if (API_URL.startsWith('PASTE')) return lock('ยังไม่ได้ตั้งค่า API_URL ในไฟล์ index.html');
+    pin = code;
+    pinMsg.textContent = 'กำลังตรวจสอบ...';
+    pinInput.disabled = true;
+    try {
+      const r = await api('load');
+      if (!r.ok) {
+        document.querySelector('.lock-card').classList.add('shake');
+        setTimeout(() => document.querySelector('.lock-card').classList.remove('shake'), 500);
+        return lock(r.error === 'pin' ? 'รหัสไม่ถูกต้อง ลองใหม่อีกครั้ง' : 'เกิดข้อผิดพลาด: ' + r.error);
+      }
+      sessionStorage.setItem('grandmaPin', pin);
+      document.body.classList.remove('locked');
+      await migrateLocal();
+      applyState();
+    } catch (e) {
+      lock('เชื่อมต่อไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ต');
+    } finally {
+      pinInput.disabled = false;
+    }
+  }
+
+  pinInput.addEventListener('input', () => {
+    pinInput.value = pinInput.value.replace(/\D/g, '').slice(0, 4);
+    updateDots();
+    pinMsg.textContent = '';
+    if (pinInput.value.length === 4) login(pinInput.value);
+  });
+  document.querySelector('.pin-dots').addEventListener('click', () => pinInput.focus());
+
   tick();
-  render();
   setInterval(tick, 1000);
+  setInterval(refresh, POLL_MS);
+  document.addEventListener('visibilitychange', refresh);
+  if (pin) login(pin); else lock();
 </script>
 </body>
 </html>
