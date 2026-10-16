@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#2f80ed">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="สุขภาพคุณย่า">
+<title>บันทึกสุขภาพคุณย่า</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f7fb; --card: #fff; --primary: #2f80ed; --text: #2d3748; --muted: #718096;
+    --ok: #27ae60; --warn: #f2994a; --bad: #eb5757; --line: #e2e8f0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--text); font-size: 18px; }
+  header {
+    background: linear-gradient(135deg, #2f80ed, #56ccf2); color: #fff;
+    padding: 24px 180px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,.1);
+  }
+  header h1 { margin: 0 0 6px; font-size: 30px; }
+  #clock-date { font-size: 20px; opacity: .95; }
+  #clock-time { font-size: 44px; font-weight: 700; letter-spacing: 2px; font-variant-numeric: tabular-nums; }
+  main { max-width: 1000px; margin: 24px auto; padding: 0 16px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .toolbar label { color: var(--muted); }
+  .toolbar input[type=date] { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; }
+  button {
+    font: inherit; font-size: 16px; border: none; border-radius: 8px; padding: 8px 16px; cursor: pointer;
+    background: var(--primary); color: #fff;
+  }
+  button.secondary { background: #fff; color: var(--primary); border: 1px solid var(--primary); }
+  .card { background: var(--card); border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,.06); overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 680px; }
+  th {
+    background: #edf2f7; padding: 14px 10px; font-size: 17px; text-align: center;
+  }
+  .limits th { background: #fff8e1; font-weight: 400; font-size: 15px; padding: 10px; border-top: 1px solid #f3e3a8; }
+  .limits th.date { text-align: left; font-weight: 600; }
+  .lim { display: flex; align-items: center; justify-content: center; gap: 4px; margin: 3px 0; }
+  .lim span { width: 52px; text-align: right; color: var(--muted); font-size: 14px; }
+  .lim input {
+    width: 64px; font: inherit; font-size: 16px; text-align: center; padding: 6px 4px;
+    border: 1px dashed #d6b85a; border-radius: 8px; background: #fff; outline: none;
+  }
+  .lim input:focus { border: 1px solid var(--primary); }
+  th small { display: block; font-weight: 400; color: var(--muted); font-size: 13px; }
+  td { padding: 10px; border-top: 1px solid var(--line); text-align: center; vertical-align: top; }
+  td.date { text-align: left; font-weight: 600; white-space: nowrap; }
+  td.date .day { display: block; font-weight: 400; color: var(--muted); font-size: 14px; }
+  tr.today { background: #eaf4ff; }
+  tr.today td.date::after { content: 'วันนี้'; background: var(--primary); color: #fff; font-size: 12px; padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
+  td input {
+    width: 100%; max-width: 160px; font: inherit; font-size: 20px; text-align: center;
+    padding: 8px; border: 2px solid var(--line); border-radius: 10px; outline: none; transition: .2s;
+  }
+  td input:focus { border-color: var(--primary); }
+  td input.ok { border-color: var(--ok); background: #effaf3; }
+  td input.warn { border-color: var(--warn); background: #fff6ee; }
+  td input.bad { border-color: var(--bad); background: #fdeeee; }
+  .stamp { display: block; font-size: 13px; color: var(--muted); margin-top: 4px; min-height: 18px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 16px 4px; font-size: 15px; color: var(--muted); }
+  .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  #toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #2d3748; color: #fff;
+    padding: 10px 20px; border-radius: 20px; opacity: 0; transition: .3s; pointer-events: none;
+  }
+  #toast.show { opacity: .95; }
+  @media print {
+    header, .toolbar, #toast, .pager { display: none; }
+    .card { box-shadow: none; }
+    td input, .lim input { border: none; background: none !important; }
+    .charts { break-before: page; }
+    .range { display: none; }
+  }
+  .pager { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin-top: 14px; }
+  .pager span { text-align: center; min-width: 200px; font-weight: 600; }
+  .pager small { display: block; font-weight: 400; color: var(--muted); font-size: 13px; }
+  .pager button:disabled { opacity: .4; cursor: default; }
+  .charts { display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 24px; }
+  .chart-card { background: var(--card); border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,.06); padding: 16px 20px; }
+  .chart-card h2 { margin: 0 0 10px; font-size: 20px; }
+  .chart-box { position: relative; height: 300px; }
+  .section-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-top: 28px; }
+  .section-head h2 { margin: 0; font-size: 22px; }
+  .range button { margin-left: 4px; }
+  .range button.active { background: var(--primary); color: #fff; }
+  button, input { -webkit-tap-highlight-color: transparent; }
+
+  header { position: relative; }
+  .cat-wrap {
+    position: absolute; top: 6px; right: 20px; width: 150px; height: 150px; z-index: 5;
+    cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+  .cat-wrap img {
+    position: relative; z-index: 2; width: 100%; height: 100%; display: block;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,.2)); transition: transform .25s ease, filter .25s ease;
+  }
+  @media (hover: hover) {
+    .cat-wrap:hover img { transform: translateY(-10px); filter: drop-shadow(0 12px 10px rgba(0,0,0,.25)); }
+  }
+  .cat-wrap.pop img { animation: catPop .4s ease; }
+  @keyframes catPop {
+    0% { transform: translateY(-10px) scale(1); }
+    40% { transform: translateY(-16px) scale(1.08, .94); }
+    100% { transform: translateY(-10px) scale(1); }
+  }
+  .heart {
+    position: absolute; left: 50%; top: 50%; z-index: 1; pointer-events: none;
+    font-size: var(--size); color: var(--color); line-height: 1;
+    animation: heartFly var(--dur) ease-out forwards;
+  }
+  @keyframes heartFly {
+    0% { transform: translate(-50%, -50%) scale(.3); opacity: 0; }
+    15% { opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1) rotate(var(--rot)); opacity: 0; }
+  }
+
+  @media (max-width: 680px) {
+    body { font-size: 16px; }
+    header { padding: 16px 104px 16px 12px; text-align: left; }
+    header h1 { font-size: 20px; margin-bottom: 2px; }
+    .cat-wrap { width: 96px; height: 96px; top: 50%; right: 6px; margin-top: -48px; }
+    .cat-wrap.pop img { animation-name: catPopMobile; }
+    @keyframes catPopMobile {
+      0% { transform: translateY(0) scale(1); }
+      40% { transform: translateY(-8px) scale(1.08, .94); }
+      100% { transform: translateY(0) scale(1); }
+    }
+    #clock-date { font-size: 15px; }
+    #clock-time { font-size: 30px; letter-spacing: 1px; }
+    main { margin: 14px auto; padding: 0 10px; }
+
+    .toolbar { flex-direction: column; align-items: stretch; }
+    .toolbar > div { display: flex; gap: 8px; align-items: center; }
+    .toolbar input[type=date] { flex: 1; font-size: 16px; padding: 10px; }
+    .toolbar button { flex: 1; padding: 12px 8px; }
+
+    .card { background: none; box-shadow: none; overflow: visible; }
+    table, tbody, thead { display: block; min-width: 0; }
+    thead tr:first-child { display: none; }
+    tr.limits { grid-template-columns: 1fr; background: #fff8e1; border: 1px solid #f3e3a8; }
+    .limits th { display: block; border: none; padding: 0; text-align: left; background: none; }
+    .limits th.date { padding-bottom: 8px; border-bottom: 1px solid #f3e3a8; }
+    .limits th[data-label]::before {
+      content: attr(data-label); display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 2px;
+    }
+    .lim { justify-content: flex-start; }
+    .lim input { flex: 1; width: auto; font-size: 16px; padding: 8px 4px; }
+    tr {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+      background: var(--card); border-radius: 14px; box-shadow: 0 2px 10px rgba(0,0,0,.07);
+      padding: 12px; margin-bottom: 12px;
+    }
+    tr.today { background: #eaf4ff; box-shadow: 0 0 0 2px var(--primary); }
+    td { display: block; border: none; padding: 0; }
+    td.date {
+      grid-column: 1 / -1; font-size: 17px; white-space: normal;
+      padding-bottom: 8px; border-bottom: 1px solid var(--line);
+    }
+    td.date .day { display: inline; margin-left: 6px; }
+    td[data-label]::before {
+      content: attr(data-label); display: block; font-size: 13px; font-weight: 600;
+      color: var(--muted); margin-bottom: 4px; line-height: 1.3;
+    }
+    td input { max-width: none; font-size: 18px; padding: 10px 4px; }
+    .stamp { font-size: 12px; }
+
+    .legend { gap: 10px; font-size: 13px; }
+    .pager { gap: 6px; }
+    .pager span { order: -1; width: 100%; }
+    .pager button { flex: 1; padding: 10px 4px; font-size: 14px; }
+
+    .section-head { flex-direction: column; align-items: stretch; }
+    .range { display: flex; gap: 6px; }
+    .range button { flex: 1; margin: 0; padding: 10px 4px; font-size: 14px; }
+    .chart-card { padding: 12px; }
+    .chart-card h2 { font-size: 17px; }
+    .chart-box { height: 260px; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="cat-wrap" id="cat">
+    <img src="cat.png" alt="แมวเตือนกรอกค่า" draggable="false">
+  </div>
+  <h1>บันทึกความดันและน้ำตาลคุณย่า</h1>
+  <div id="clock-date"></div>
+  <div id="clock-time"></div>
+</header>
+
+<main>
+  <div class="toolbar">
+    <div>
+      <label for="startDate">เริ่มบันทึกตั้งแต่วันที่</label>
+      <input type="date" id="startDate">
+    </div>
+    <div>
+      <button class="secondary" onclick="exportExcel()">ดาวน์โหลด Excel</button>
+      <button onclick="window.print()">พิมพ์ให้คุณหมอ</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr>
+          <th>วันที่</th>
+          <th>ความดันโลหิต<small>(mmHg เช่น 120/80)</small></th>
+          <th>DTX เช้า<small>(ก่อนอาหาร, mg/dL)</small></th>
+          <th>DTX เย็น<small>(ก่อนอาหาร, mg/dL)</small></th>
+        </tr>
+        <tr class="limits">
+          <th class="date">ค่าที่ควรอยู่ระหว่าง<small>กรอกตามที่คุณหมอแนะนำ</small></th>
+          <th data-label="ความดัน (mmHg)">
+            <div class="lim"><span>ตัวบน</span><input data-lim="sysMin" placeholder="ต่ำสุด"> – <input data-lim="sysMax" placeholder="สูงสุด"></div>
+            <div class="lim"><span>ตัวล่าง</span><input data-lim="diaMin" placeholder="ต่ำสุด"> – <input data-lim="diaMax" placeholder="สูงสุด"></div>
+          </th>
+          <th data-label="DTX เช้า (ก่อนอาหาร)">
+            <div class="lim"><input data-lim="amMin" placeholder="ต่ำสุด"> – <input data-lim="amMax" placeholder="สูงสุด"></div>
+          </th>
+          <th data-label="DTX เย็น (ก่อนอาหาร)">
+            <div class="lim"><input data-lim="pmMin" placeholder="ต่ำสุด"> – <input data-lim="pmMax" placeholder="สูงสุด"></div>
+          </th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <div class="pager" id="pager"></div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:var(--ok)"></span>อยู่ในช่วงที่กำหนด</span>
+    <span><span class="dot" style="background:var(--bad)"></span>สูงหรือต่ำกว่าช่วงที่กำหนด</span>
+    <span><span class="dot" style="background:var(--warn)"></span>พิมพ์รูปแบบไม่ถูก (ความดันต้องเป็น เช่น 120/80)</span>
+    <span>ถ้ายังไม่กรอกช่วงค่า จะไม่มีสี</span>
+  </div>
+
+  <div class="section-head">
+    <h2>กราฟแนวโน้ม</h2>
+    <div class="range" id="range">
+      <button class="secondary" data-days="7">7 วัน</button>
+      <button class="secondary active" data-days="30">30 วัน</button>
+      <button class="secondary" data-days="90">90 วัน</button>
+      <button class="secondary" data-days="0">ทั้งหมด</button>
+    </div>
+  </div>
+  <div class="charts">
+    <div class="chart-card">
+      <h2>ความดันโลหิต (mmHg)</h2>
+      <div class="chart-box"><canvas id="bpChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h2>น้ำตาลในเลือด DTX (mg/dL)</h2>
+      <div class="chart-box"><canvas id="dtxChart"></canvas></div>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+  const STORE_KEY = 'grandmaHealthData';
+  const START_KEY = 'grandmaHealthStart';
+  const FIELDS = ['bp', 'am', 'pm'];
+  const LABELS = { bp: 'ความดัน (mmHg)', am: 'DTX เช้า (ก่อนอาหาร)', pm: 'DTX เย็น (ก่อนอาหาร)' };
+  const data = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+
+  const pad = n => String(n).padStart(2, '0');
+  const keyOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parseKey = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+  const thaiDate = d => d.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+  const thaiDay = d => d.toLocaleDateString('th-TH', { weekday: 'long' });
+  const thaiTime = d => d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+  let todayKey = keyOf(new Date());
+  if (!localStorage.getItem(START_KEY)) localStorage.setItem(START_KEY, todayKey);
+  const startInput = document.getElementById('startDate');
+  startInput.value = localStorage.getItem(START_KEY);
+  startInput.max = todayKey;
+  startInput.addEventListener('change', () => {
+    if (!startInput.value) return;
+    localStorage.setItem(START_KEY, startInput.value);
+    page = 1;
+    render();
+  });
+
+  function tick() {
+    const now = new Date();
+    document.getElementById('clock-date').textContent = `${thaiDay(now)}ที่ ${thaiDate(now)}`;
+    document.getElementById('clock-time').textContent = now.toLocaleTimeString('th-TH');
+    if (keyOf(now) !== todayKey) {
+      todayKey = keyOf(now);
+      startInput.max = todayKey;
+      render();
+    }
+  }
+
+  const LIMIT_KEY = 'grandmaHealthLimits';
+  const limits = JSON.parse(localStorage.getItem(LIMIT_KEY) || '{}');
+  document.querySelectorAll('[data-lim]').forEach(i => {
+    i.value = limits[i.dataset.lim] ?? '';
+    i.inputMode = 'numeric';
+  });
+  document.querySelector('thead').addEventListener('change', e => {
+    const k = e.target.dataset.lim;
+    if (!k) return;
+    const v = num(e.target.value.trim());
+    if (v == null) { delete limits[k]; e.target.value = ''; } else limits[k] = v;
+    localStorage.setItem(LIMIT_KEY, JSON.stringify(limits));
+    render();
+    showToast('บันทึกช่วงค่าที่ควรเป็นแล้ว');
+  });
+
+  function inRange(v, lo, hi) {
+    const a = limits[lo], b = limits[hi];
+    if (a == null && b == null) return '';
+    return (a != null && v < a) || (b != null && v > b) ? 'bad' : 'ok';
+  }
+
+  function level(field, value) {
+    if (!value) return '';
+    if (field === 'bp') {
+      const [sys, dia] = parseBP(value);
+      if (sys == null) return 'warn';
+      const r = [inRange(sys, 'sysMin', 'sysMax'), inRange(dia, 'diaMin', 'diaMax')];
+      return r.includes('bad') ? 'bad' : r.includes('ok') ? 'ok' : '';
+    }
+    const v = num(value);
+    return v == null ? 'warn' : inRange(v, field + 'Min', field + 'Max');
+  }
+
+  const fmtRange = (lo, hi) => {
+    const a = limits[lo], b = limits[hi];
+    return a != null && b != null ? `${a} – ${b}` : a != null ? `≥ ${a}` : b != null ? `≤ ${b}` : 'ยังไม่กำหนด';
+  };
+
+  const PAGE_SIZE = 10;
+  let page = 1;
+
+  function goPage(p) {
+    page = p;
+    render();
+    document.querySelector('.card').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function render() {
+    const tbody = document.getElementById('rows');
+    tbody.innerHTML = '';
+    const days = allDays().reverse();
+    const pages = Math.max(1, Math.ceil(days.length / PAGE_SIZE));
+    page = Math.min(Math.max(page, 1), pages);
+    days.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).forEach(k => {
+      const d = parseKey(k);
+      const rec = data[k] || {};
+      const tr = document.createElement('tr');
+      if (k === todayKey) tr.className = 'today';
+      tr.innerHTML = `<td class="date">${thaiDate(d)}<span class="day">${thaiDay(d)}</span></td>` +
+        FIELDS.map(f => {
+          const e = rec[f] || {};
+          return `<td data-label="${LABELS[f]}">
+            <input data-date="${k}" data-field="${f}" value="${e.v || ''}"
+              inputmode="${f === 'bp' ? 'text' : 'numeric'}" placeholder="${f === 'bp' ? '120/80' : '100'}"
+              class="${level(f, e.v)}">
+            <span class="stamp">${e.t ? 'บันทึกเวลา ' + thaiTime(new Date(e.t)) + ' น.' : ''}</span>
+          </td>`;
+        }).join('');
+      tbody.appendChild(tr);
+    });
+    const first = days[Math.min(page * PAGE_SIZE, days.length) - 1], last = days[(page - 1) * PAGE_SIZE];
+    document.getElementById('pager').innerHTML = `
+      <button class="secondary" ${page === 1 ? 'disabled' : ''} onclick="goPage(1)">« ล่าสุด</button>
+      <button class="secondary" ${page === 1 ? 'disabled' : ''} onclick="goPage(${page - 1})">‹ ใหม่กว่า</button>
+      <span>หน้า ${page} / ${pages}<small>${thaiDate(parseKey(first))} – ${thaiDate(parseKey(last))}</small></span>
+      <button class="secondary" ${page === pages ? 'disabled' : ''} onclick="goPage(${page + 1})">เก่ากว่า ›</button>
+      <button class="secondary" ${page === pages ? 'disabled' : ''} onclick="goPage(${pages})">เก่าสุด »</button>`;
+    updateCharts();
+  }
+
+  document.getElementById('rows').addEventListener('change', e => {
+    const input = e.target;
+    if (input.tagName !== 'INPUT') return;
+    const { date, field } = input.dataset;
+    const value = input.value.trim();
+    data[date] = data[date] || {};
+    if (value) data[date][field] = { v: value, t: new Date().toISOString() };
+    else delete data[date][field];
+    localStorage.setItem(STORE_KEY, JSON.stringify(data));
+    input.className = level(field, value);
+    const stamp = input.nextElementSibling;
+    stamp.textContent = value ? 'บันทึกเวลา ' + thaiTime(new Date()) + ' น.' : '';
+    showToast(value ? 'บันทึกเรียบร้อย' : 'ลบค่าแล้ว');
+    updateCharts();
+  });
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._h);
+    t._h = setTimeout(() => t.classList.remove('show'), 1500);
+  }
+
+  function allDays() {
+    const days = [];
+    const end = parseKey(todayKey);
+    for (let d = parseKey(localStorage.getItem(START_KEY)); d <= end; d.setDate(d.getDate() + 1)) days.push(keyOf(d));
+    return days;
+  }
+
+  const parseBP = v => {
+    const m = (v || '').match(/^(\d{2,3})\s*\/\s*(\d{2,3})$/);
+    return m ? [+m[1], +m[2]] : [null, null];
+  };
+  const num = v => (v && !isNaN(+v) ? +v : null);
+
+  let chartDays = 30, bpChart, dtxChart;
+  document.getElementById('range').addEventListener('click', e => {
+    if (!e.target.dataset.days) return;
+    chartDays = +e.target.dataset.days;
+    document.querySelectorAll('#range button').forEach(b => b.classList.toggle('active', b === e.target));
+    updateCharts();
+  });
+
+  function makeChart(canvas, datasets, yMin) {
+    return new Chart(canvas, {
+      type: 'line',
+      data: { labels: [], datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, spanGaps: true,
+        interaction: { mode: 'index', intersect: false },
+        scales: { y: { suggestedMin: yMin } },
+        plugins: {
+          legend: { labels: {
+            font: { family: 'Sarabun', size: innerWidth < 680 ? 12 : 15 }, boxWidth: innerWidth < 680 ? 20 : 40,
+            filter: (item, d) => d.datasets[item.datasetIndex].data.some(v => v != null)
+          } },
+          tooltip: { titleFont: { family: 'Sarabun' }, bodyFont: { family: 'Sarabun', size: 14 } }
+        }
+      }
+    });
+  }
+  const line = (label, color, dashed) => ({
+    label, borderColor: color, backgroundColor: color, tension: .3, borderWidth: dashed ? 1.5 : 3,
+    pointRadius: dashed ? 0 : 4, borderDash: dashed ? [6, 6] : [], data: []
+  });
+
+  function updateCharts() {
+    if (typeof Chart === 'undefined') return;
+    let days = allDays();
+    if (chartDays) days = days.slice(-chartDays);
+    const labels = days.map(k => parseKey(k).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }));
+    if (!bpChart) {
+      bpChart = makeChart(document.getElementById('bpChart'), [
+        line('ตัวบน (Systolic)', '#eb5757'), line('ตัวล่าง (Diastolic)', '#2f80ed'),
+        line('ตัวบน ต่ำสุด', '#eb5757', true), line('ตัวบน สูงสุด', '#eb5757', true),
+        line('ตัวล่าง ต่ำสุด', '#2f80ed', true), line('ตัวล่าง สูงสุด', '#2f80ed', true)
+      ], 50);
+      dtxChart = makeChart(document.getElementById('dtxChart'), [
+        line('DTX เช้า', '#f2994a'), line('DTX เย็น', '#27ae60'),
+        line('เช้า ต่ำสุด', '#f2994a', true), line('เช้า สูงสุด', '#f2994a', true),
+        line('เย็น ต่ำสุด', '#27ae60', true), line('เย็น สูงสุด', '#27ae60', true)
+      ], 50);
+    }
+    const bp = days.map(k => parseBP(data[k]?.bp?.v));
+    const fill = k => days.map(() => limits[k] ?? null);
+    bpChart.data.labels = labels;
+    dtxChart.data.labels = [...labels];
+    [bp.map(x => x[0]), bp.map(x => x[1]), fill('sysMin'), fill('sysMax'), fill('diaMin'), fill('diaMax')]
+      .forEach((d, i) => bpChart.data.datasets[i].data = d);
+    [days.map(k => num(data[k]?.am?.v)), days.map(k => num(data[k]?.pm?.v)), fill('amMin'), fill('amMax'), fill('pmMin'), fill('pmMax')]
+      .forEach((d, i) => dtxChart.data.datasets[i].data = d);
+    bpChart.update();
+    dtxChart.update();
+  }
+
+  async function exportExcel() {
+    if (typeof ExcelJS === 'undefined') return showToast('ต้องต่ออินเทอร์เน็ตเพื่อดาวน์โหลด Excel');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('บันทึกสุขภาพ', { views: [{ state: 'frozen', ySplit: 4 }] });
+    const font = { name: 'Tahoma', size: 12 };
+    const border = { style: 'thin', color: { argb: 'FFBFBFBF' } };
+    const borders = { top: border, left: border, bottom: border, right: border };
+    const fills = { ok: 'FFC6EFCE', warn: 'FFFFEB9C', bad: 'FFFFC7CE' };
+
+    ws.columns = [
+      { width: 24 }, { width: 15 }, { width: 16 }, { width: 14 }, { width: 13 }, { width: 14 }, { width: 13 }, { width: 14 }
+    ];
+
+    ws.mergeCells('A1:H1');
+    ws.getCell('A1').value = 'บันทึกความดันและน้ำตาลคุณย่า';
+    ws.getCell('A1').font = { ...font, size: 16, bold: true };
+    ws.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getRow(1).height = 30;
+
+    ws.getRow(2).values = [`ส่งออกเมื่อ ${thaiDate(new Date())} เวลา ${thaiTime(new Date())} น.`];
+    ws.mergeCells('A2:H2');
+    ws.getCell('A2').font = { ...font, size: 11, color: { argb: 'FF718096' } };
+    ws.getCell('A2').alignment = { horizontal: 'center' };
+
+    const header = ws.getRow(3);
+    header.values = ['วันที่', 'วัน', 'ความดันโลหิต\n(mmHg)', 'เวลาที่วัด', 'DTX เช้า\n(mg/dL)', 'เวลาที่วัด', 'DTX เย็น\n(mg/dL)', 'เวลาที่วัด'];
+    header.height = 40;
+    header.eachCell(c => {
+      c.font = { ...font, bold: true, color: { argb: 'FFFFFFFF' } };
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2F80ED' } };
+      c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      c.border = borders;
+    });
+
+    const limRow = ws.getRow(4);
+    limRow.values = ['ค่าที่ควรอยู่ระหว่าง', '',
+      `ตัวบน ${fmtRange('sysMin', 'sysMax')}\nตัวล่าง ${fmtRange('diaMin', 'diaMax')}`, '',
+      fmtRange('amMin', 'amMax'), '', fmtRange('pmMin', 'pmMax'), ''];
+    limRow.height = 40;
+    ['A4:B4', 'C4:D4', 'E4:F4', 'G4:H4'].forEach(r => ws.mergeCells(r));
+    limRow.eachCell({ includeEmpty: true }, (c, col) => {
+      c.font = { ...font, bold: col === 1 };
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF8E1' } };
+      c.alignment = { horizontal: col === 1 ? 'left' : 'center', vertical: 'middle', wrapText: true, indent: col === 1 ? 1 : 0 };
+      c.border = borders;
+    });
+
+    allDays().forEach(k => {
+      const r = data[k] || {};
+      const d = parseKey(k);
+      const cells = [thaiDate(d), thaiDay(d)];
+      FIELDS.forEach(f => {
+        const v = r[f]?.v || '';
+        cells.push(f === 'bp' ? v : (num(v) ?? v), r[f] ? thaiTime(new Date(r[f].t)) + ' น.' : '');
+      });
+      const row = ws.addRow(cells);
+      row.height = 22;
+      row.eachCell({ includeEmpty: true }, (c, col) => {
+        c.font = font;
+        c.border = borders;
+        c.alignment = { horizontal: col === 1 ? 'left' : 'center', vertical: 'middle', indent: col === 1 ? 1 : 0 };
+        const field = { 3: 'bp', 5: 'am', 7: 'pm' }[col];
+        const lv = field && level(field, r[field]?.v);
+        if (lv) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fills[lv] } };
+        if (col % 2 === 0 && col > 2) c.font = { ...font, size: 11, color: { argb: 'FF718096' } };
+      });
+    });
+
+    const note = ws.addRow([]);
+    ws.addRow(['สี: เขียว = อยู่ในช่วงที่กำหนด, แดง = สูงหรือต่ำกว่าช่วงที่กำหนด, เหลือง = รูปแบบค่าไม่ถูกต้อง']);
+    ws.mergeCells(`A${note.number + 1}:H${note.number + 1}`);
+    ws.getCell(`A${note.number + 1}`).font = { ...font, size: 11, italic: true };
+
+    ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '3:4' };
+
+    const buf = await wb.xlsx.writeBuffer();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = `บันทึกสุขภาพคุณย่า_${todayKey}.xlsx`;
+    a.click();
+  }
+
+  const cat = document.getElementById('cat');
+  const HEART_COLORS = ['#ff4d6d', '#ff758f', '#ff8fab', '#e63946', '#ffb3c6'];
+  cat.addEventListener('click', () => {
+    cat.classList.remove('pop');
+    void cat.offsetWidth;
+    cat.classList.add('pop');
+    const big = cat.offsetWidth > 120;
+    for (let i = 0; i < 10; i++) {
+      const h = document.createElement('span');
+      h.className = 'heart';
+      h.textContent = '♥';
+      const angle = Math.PI * (0.9 + Math.random() * 1.2);
+      const dist = (big ? 90 : 60) + Math.random() * (big ? 70 : 45);
+      h.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+      h.style.setProperty('--dy', `${Math.sin(angle) * dist * 0.6 + (big ? 30 : 20)}px`);
+      h.style.setProperty('--rot', `${Math.random() * 60 - 30}deg`);
+      h.style.setProperty('--size', `${(big ? 18 : 14) + Math.random() * 16}px`);
+      h.style.setProperty('--color', HEART_COLORS[i % HEART_COLORS.length]);
+      h.style.setProperty('--dur', `${0.9 + Math.random() * 0.7}s`);
+      h.style.animationDelay = `${Math.random() * 0.15}s`;
+      cat.appendChild(h);
+      h.addEventListener('animationend', () => h.remove());
+    }
+  });
+
+  tick();
+  render();
+  setInterval(tick, 1000);
+</script>
+</body>
+</html>
