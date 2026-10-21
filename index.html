@@ -35,7 +35,7 @@
   .card { background: var(--card); border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,.06); overflow-x: auto; }
   html, body { max-width: 100%; overflow-x: hidden; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  thead th:first-child { width: 19%; }
+  thead th:first-child { width: 17%; }
   th {
     background: #edf2f7; padding: 14px 10px; font-size: 17px; text-align: center;
   }
@@ -63,6 +63,25 @@
   tr.retest td { border-top: 1px dashed #c39bd3; background: #faf5fc; }
   td.retest-label { text-align: left; color: #8e44ad; font-weight: 700; vertical-align: middle; }
   td.retest-label small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
+  tr.note-row td { border-top: 1px dashed var(--line); padding-top: 6px; }
+  .note-wrap { display: flex; align-items: center; gap: 10px; }
+  .note-wrap label { font-size: 14px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  td .note-wrap input { max-width: none; flex: 1; font-size: 16px; text-align: left; padding: 7px 10px; border-width: 1px; }
+  .note-wrap .stamp { margin: 0; white-space: nowrap; }
+  .who-bar { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--muted); }
+  .who-bar b { color: var(--text); }
+  .who-bar button { font-size: 13px; padding: 3px 12px; border-radius: 14px; }
+  .who-step p { margin: 0 0 14px; }
+  .who-names { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 14px; }
+  .who-names button { border-radius: 20px; padding: 8px 16px; }
+  .who-new { display: flex; gap: 8px; }
+  .who-new input {
+    flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 10px 12px;
+    border: 2px solid var(--line); border-radius: 10px; outline: none;
+  }
+  .who-new input:focus { border-color: var(--primary); }
+  .who-step small { display: block; margin-top: 12px; color: var(--muted); font-size: 13px; }
+  [hidden] { display: none !important; }
   td input {
     width: 100%; min-width: 0; max-width: 160px; font: inherit; font-size: 20px; text-align: center;
     padding: 8px; border: 2px solid var(--line); border-radius: 10px; outline: none; transition: .2s;
@@ -236,6 +255,16 @@
     td.retest-label { grid-column: 1 / -1; font-size: 15px; }
     td.retest-label small { display: inline; margin-left: 6px; }
     tr.retest td.empty { display: none; }
+    td.f-bp, td.f-bp2 { grid-column: 1 / -1; }
+    tr.note-row { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+    td.note-cell { grid-column: 1 / -1; }
+    td.note-cell { text-align: left; }
+    .note-wrap { flex-wrap: wrap; gap: 4px; }
+    .note-wrap label { width: 100%; font-size: 12px; }
+    td .note-wrap input { flex-basis: 100%; }
+    .note-wrap .stamp { white-space: normal; }
+    .toolbar .who-bar { justify-content: flex-start; }
+    .toolbar .who-bar button { flex: 0 0 auto; padding: 4px 14px; margin-left: auto; }
 
     .legend { gap: 10px; font-size: 13px; }
     .pager { gap: 6px; }
@@ -273,13 +302,24 @@
   <div class="lock-card">
     <img src="cat.png" alt="" class="lock-cat">
     <h2>บันทึกสุขภาพคุณย่า</h2>
-    <p>กรุณาใส่รหัส 4 หลัก</p>
-    <div class="pin-box">
-      <div class="pin-dots"><span></span><span></span><span></span><span></span></div>
-      <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4"
-        autocomplete="off" aria-label="รหัส 4 หลัก">
+    <div class="pin-step">
+      <p>กรุณาใส่รหัส 4 หลัก</p>
+      <div class="pin-box">
+        <div class="pin-dots"><span></span><span></span><span></span><span></span></div>
+        <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+          autocomplete="off" aria-label="รหัส 4 หลัก">
+      </div>
+      <div id="pinMsg"></div>
     </div>
-    <div id="pinMsg"></div>
+    <div class="who-step" hidden>
+      <p>ใครเป็นคนกรอกข้อมูลบนเครื่องนี้?</p>
+      <div class="who-names" id="whoNames"></div>
+      <div class="who-new">
+        <input id="whoInput" maxlength="30" autocomplete="off" aria-label="ชื่อผู้กรอก" placeholder="หรือพิมพ์ชื่อใหม่">
+        <button type="button" id="whoOk">ตกลง</button>
+      </div>
+      <small>เลือกครั้งเดียว เครื่องนี้จะจำไว้</small>
+    </div>
   </div>
 </div>
 
@@ -294,6 +334,7 @@
 
 <main>
   <div class="toolbar">
+    <div class="who-bar">ผู้กรอก: <b id="whoName"></b><button type="button" class="secondary" id="whoChange">เปลี่ยน</button></div>
     <div>
       <label for="startDate">เริ่มบันทึกตั้งแต่วันที่</label>
       <input type="date" id="startDate">
@@ -312,7 +353,8 @@
           <th>ความดันโลหิต<small>(mmHg เช่น 120/80)</small></th>
           <th>DTX เช้า<small>(ก่อนอาหาร, mg/dL)</small></th>
           <th>DTX เย็น<small>(ก่อนอาหาร, mg/dL)</small></th>
-          <th>ฉีด Insulin<small>(unit)</small></th>
+          <th>Insulin เช้า<small>(unit)</small></th>
+          <th>Insulin เย็น<small>(unit)</small></th>
         </tr>
         <tr class="limits">
           <th class="date">ค่าที่ควรอยู่ระหว่าง<small>กรอกตามที่คุณหมอแนะนำ</small></th>
@@ -326,6 +368,7 @@
           <th data-label="DTX เย็น (ก่อนอาหาร)">
             <div class="lim"><input data-lim="pmMin" placeholder="ต่ำสุด"> – <input data-lim="pmMax" placeholder="สูงสุด"></div>
           </th>
+          <th class="no-lim">—</th>
           <th class="no-lim">—</th>
         </tr>
       </thead>
@@ -372,12 +415,15 @@
   const API_URL = 'https://script.google.com/macros/s/AKfycbxMZ7KqVpiy1GtsXvVjr43BXGRQK0OhwK0HcpwChGM3bHJvoouPvN5wmZLRY2yQ9lzWzQ/exec';
   const POLL_MS = 15000;
 
-  const MAIN = ['bp', 'am', 'pm', 'ins'];
+  const MAIN = ['bp', 'am', 'pm', 'ins', 'insPm'];
   const RETEST = ['bp2', 'am2', 'pm2'];
   const LABELS = {
-    bp: 'ความดัน (mmHg)', am: 'DTX เช้า (ก่อนอาหาร)', pm: 'DTX เย็น (ก่อนอาหาร)', ins: 'ฉีด Insulin (unit)',
-    bp2: 'ความดัน (ตรวจซ้ำ)', am2: 'DTX เช้า (ตรวจซ้ำ)', pm2: 'DTX เย็น (ตรวจซ้ำ)'
+    bp: 'ความดัน (mmHg)', am: 'DTX เช้า (ก่อนอาหาร)', pm: 'DTX เย็น (ก่อนอาหาร)',
+    ins: 'Insulin เช้า (unit)', insPm: 'Insulin เย็น (unit)',
+    bp2: 'ความดัน (ตรวจซ้ำ)', am2: 'DTX เช้า (ตรวจซ้ำ)', pm2: 'DTX เย็น (ตรวจซ้ำ)', note: 'หมายเหตุ'
   };
+  const COLS = MAIN.length + 1;
+  let user = localStorage.getItem('grandmaUser') || '', names = [];
   const base = f => f.replace(/2$/, '');
   const openMap = new Map();
 
@@ -408,6 +454,7 @@
       data = json.data || {};
       limits = json.limits || {};
       startKey = json.start || '';
+      names = json.names || [];
     }
     return json;
   }
@@ -490,7 +537,8 @@
   function level(field, value) {
     if (!value) return '';
     field = base(field);
-    if (field === 'ins') return num(value) == null ? 'warn' : '';
+    if (field === 'note') return '';
+    if (field === 'ins' || field === 'insPm') return num(value) == null ? 'warn' : '';
     if (field === 'bp') {
       const [sys, dia] = parseBP(value);
       if (sys == null) return 'warn';
@@ -515,16 +563,24 @@
     document.querySelector('.card').scrollIntoView({ behavior: 'smooth' });
   }
 
-  const PLACEHOLDER = { bp: '120/80', am: '100', pm: '100', ins: 'unit' };
-  const INPUTMODE = { bp: 'text', am: 'numeric', pm: 'numeric', ins: 'decimal' };
+  const INPUTMODE = { bp: 'text', am: 'numeric', pm: 'numeric', ins: 'decimal', insPm: 'decimal' };
 
   function cell(k, f, rec) {
     const e = rec[f] || {};
-    return `<td data-label="${LABELS[f]}">
+    return `<td class="f-${f}" data-label="${LABELS[f]}">
       <input data-date="${k}" data-field="${f}" value="${esc(e.v)}"
-        inputmode="${INPUTMODE[base(f)]}" placeholder="${PLACEHOLDER[base(f)]}" class="${level(f, e.v)}">
-      <span class="stamp">${stampText(e)}</span>
+        inputmode="${INPUTMODE[base(f)]}" class="${level(f, e.v)}">
+      <span class="stamp">${esc(stampText(e))}</span>
     </td>`;
+  }
+
+  function noteCell(k, rec) {
+    const e = rec.note || {};
+    return `<td class="note-cell" colspan="${COLS}"><div class="note-wrap">
+      <label for="note-${k}">หมายเหตุ</label>
+      <input id="note-${k}" data-date="${k}" data-field="note" maxlength="300" value="${esc(e.v)}" autocomplete="off">
+      <span class="stamp">${esc(stampText(e))}</span>
+    </div></td>`;
   }
 
   const toggleText = open => (open ? '− ซ่อนตรวจซ้ำ' : '+ ตรวจซ้ำ');
@@ -552,8 +608,9 @@
         <tr class="retest">
           <td class="retest-label">ตรวจซ้ำ<small>ค่าที่วัดซ้ำในวันนี้</small></td>
           ${RETEST.map(f => cell(k, f, rec)).join('')}
-          <td class="empty"></td>
-        </tr>`;
+          ${'<td class="empty"></td>'.repeat(MAIN.length - RETEST.length)}
+        </tr>
+        <tr class="note-row">${noteCell(k, rec)}</tr>`;
       table.appendChild(tbody);
     });
     const first = days[Math.min(page * PAGE_SIZE, days.length) - 1], last = days[(page - 1) * PAGE_SIZE];
@@ -566,7 +623,11 @@
     updateCharts();
   }
 
-  const stampText = e => (e && e.t ? 'บันทึกเวลา ' + thaiTime(new Date(e.t)) + ' น.' : '');
+  const stampText = e => {
+    if (!e || !e.v) return '';
+    const d = new Date(e.t);
+    return 'บันทึก' + (isNaN(d) ? '' : ' ' + thaiTime(d) + ' น.') + (e.by ? ' · ' + e.by : '');
+  };
 
   document.getElementById('tbl').addEventListener('click', e => {
     const k = e.target.dataset.toggle;
@@ -586,7 +647,7 @@
     const stamp = input.nextElementSibling;
     input.className = level(field, value);
     stamp.textContent = 'กำลังบันทึก...';
-    const r = await save('set', { date, field, value }, value ? 'บันทึกเรียบร้อย' : 'ลบค่าแล้ว');
+    const r = await save('set', { date, field, value, by: user }, value ? 'บันทึกเรียบร้อย' : 'ลบค่าแล้ว');
     stamp.textContent = r ? stampText(data[date]?.[field]) : 'ยังไม่ได้บันทึก';
     updateCharts();
   });
@@ -676,8 +737,10 @@
         points('เช้า (ตรวจซ้ำ)', '#c0661c'), points('เย็น (ตรวจซ้ำ)', '#1b7a43')
       ], 50);
       insChart = makeChart(document.getElementById('insChart'), [
-        { label: 'Insulin (unit)', backgroundColor: 'rgba(155, 81, 224, .75)', borderColor: '#9b51e0',
-          borderWidth: 1, borderRadius: 6, maxBarThickness: 28, data: [] }
+        { label: 'Insulin เช้า', backgroundColor: 'rgba(242, 153, 74, .8)', borderColor: '#f2994a',
+          borderWidth: 1, borderRadius: 6, maxBarThickness: 22, data: [] },
+        { label: 'Insulin เย็น', backgroundColor: 'rgba(155, 81, 224, .75)', borderColor: '#9b51e0',
+          borderWidth: 1, borderRadius: 6, maxBarThickness: 22, data: [] }
       ], 0, 'bar');
     }
     const bp = days.map(k => parseBP(data[k]?.bp?.v));
@@ -692,7 +755,7 @@
     setData(bpChart, [bp.map(x => x[0]), bp.map(x => x[1]), fill('sysMin'), fill('sysMax'), fill('diaMin'), fill('diaMax'),
       bp2.map(x => x[0]), bp2.map(x => x[1])]);
     setData(dtxChart, [val('am'), val('pm'), fill('amMin'), fill('amMax'), fill('pmMin'), fill('pmMax'), val('am2'), val('pm2')]);
-    setData(insChart, [val('ins')]);
+    setData(insChart, [val('ins'), val('insPm')]);
   }
 
   async function exportExcel() {
@@ -704,24 +767,27 @@
     const borders = { top: border, left: border, bottom: border, right: border };
     const fills = { ok: 'FFC6EFCE', warn: 'FFFFEB9C', bad: 'FFFFC7CE' };
 
+    const LAST = 'M';
     ws.columns = [
-      { width: 24 }, { width: 15 }, { width: 16 }, { width: 14 }, { width: 13 }, { width: 14 }, { width: 13 }, { width: 14 },
-      { width: 13 }, { width: 14 }
+      { width: 24 }, { width: 15 },
+      { width: 16 }, { width: 17 }, { width: 13 }, { width: 17 }, { width: 13 }, { width: 17 },
+      { width: 13 }, { width: 17 }, { width: 13 }, { width: 17 }, { width: 40 }
     ];
 
-    ws.mergeCells('A1:J1');
+    ws.mergeCells(`A1:${LAST}1`);
     ws.getCell('A1').value = 'บันทึกความดันและน้ำตาลคุณย่า';
     ws.getCell('A1').font = { ...font, size: 16, bold: true };
     ws.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
     ws.getRow(1).height = 30;
 
     ws.getRow(2).values = [`ส่งออกเมื่อ ${thaiDate(new Date())} เวลา ${thaiTime(new Date())} น.`];
-    ws.mergeCells('A2:J2');
+    ws.mergeCells(`A2:${LAST}2`);
     ws.getCell('A2').font = { ...font, size: 11, color: { argb: 'FF718096' } };
     ws.getCell('A2').alignment = { horizontal: 'center' };
 
     const header = ws.getRow(3);
-    header.values = ['วันที่', 'วัน', 'ความดันโลหิต\n(mmHg)', 'เวลาที่วัด', 'DTX เช้า\n(mg/dL)', 'เวลาที่วัด', 'DTX เย็น\n(mg/dL)', 'เวลาที่วัด', 'ฉีด Insulin\n(unit)', 'เวลาที่ฉีด'];
+    header.values = ['วันที่', 'วัน', 'ความดันโลหิต\n(mmHg)', 'เวลาที่วัด', 'DTX เช้า\n(mg/dL)', 'เวลาที่วัด', 'DTX เย็น\n(mg/dL)', 'เวลาที่วัด',
+      'Insulin เช้า\n(unit)', 'เวลาที่ฉีด', 'Insulin เย็น\n(unit)', 'เวลาที่ฉีด', 'หมายเหตุ'];
     header.height = 40;
     header.eachCell(c => {
       c.font = { ...font, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -733,9 +799,9 @@
     const limRow = ws.getRow(4);
     limRow.values = ['ค่าที่ควรอยู่ระหว่าง', '',
       `ตัวบน ${fmtRange('sysMin', 'sysMax')}\nตัวล่าง ${fmtRange('diaMin', 'diaMax')}`, '',
-      fmtRange('amMin', 'amMax'), '', fmtRange('pmMin', 'pmMax'), '', '—', ''];
+      fmtRange('amMin', 'amMax'), '', fmtRange('pmMin', 'pmMax'), '', '—', '', '—', '', ''];
     limRow.height = 40;
-    ['A4:B4', 'C4:D4', 'E4:F4', 'G4:H4', 'I4:J4'].forEach(r => ws.mergeCells(r));
+    ['A4:B4', 'C4:D4', 'E4:F4', 'G4:H4', 'I4:J4', 'K4:L4'].forEach(r => ws.mergeCells(r));
     limRow.eachCell({ includeEmpty: true }, (c, col) => {
       c.font = { ...font, bold: col === 1 };
       c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF8E1' } };
@@ -743,19 +809,30 @@
       c.border = borders;
     });
 
+    const NOTE_COL = 3 + MAIN.length * 2;
+    const timeText = e => {
+      if (!e) return '';
+      const d = new Date(e.t);
+      return [isNaN(d) ? '' : thaiTime(d) + ' น.', e.by ? `(${e.by})` : ''].filter(Boolean).join(' ');
+    };
     const addDataRow = (r, first, second, fields, retest) => {
       const cells = [first, second];
       fields.forEach(f => {
         const v = (f && r[f]?.v) || '';
-        cells.push(base(f || '') === 'bp' ? v : (num(v) ?? v), f && r[f] ? thaiTime(new Date(r[f].t)) + ' น.' : '');
+        cells.push(base(f || '') === 'bp' ? v : (num(v) ?? v), f ? timeText(r[f]) : '');
       });
+      const noteText = retest ? '' : (r.note?.v ? r.note.v + (r.note.by ? ` (${r.note.by})` : '') : '');
+      cells.push(noteText);
       const row = ws.addRow(cells);
-      row.height = 22;
+      row.height = Math.max(22, Math.ceil(noteText.length / 45) * 18 + 4);
       row.eachCell({ includeEmpty: true }, (c, col) => {
         c.font = retest && col <= 2 ? { ...font, bold: true, color: { argb: 'FF8E44AD' } } : font;
         c.border = borders;
-        c.alignment = { horizontal: col === 1 ? 'left' : 'center', vertical: 'middle', indent: col === 1 ? 1 : 0 };
+        c.alignment = col === NOTE_COL
+          ? { horizontal: 'left', vertical: 'middle', wrapText: true }
+          : { horizontal: col === 1 ? 'left' : 'center', vertical: 'middle', indent: col === 1 ? 1 : 0 };
         if (retest) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7EEFB' } };
+        if (col === NOTE_COL) return;
         const field = fields[(col - 3) / 2];
         const lv = col > 2 && col % 2 === 1 && field && level(field, r[field]?.v);
         if (lv) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fills[lv] } };
@@ -767,12 +844,12 @@
       const r = data[k] || {};
       const d = parseKey(k);
       addDataRow(r, thaiDate(d), thaiDay(d), MAIN, false);
-      if (RETEST.some(f => r[f]?.v)) addDataRow(r, '', 'ตรวจซ้ำ', [...RETEST, null], true);
+      if (RETEST.some(f => r[f]?.v)) addDataRow(r, '', 'ตรวจซ้ำ', [...RETEST, null, null], true);
     });
 
     const note = ws.addRow([]);
-    ws.addRow(['สี: เขียว = อยู่ในช่วงที่กำหนด, แดง = สูงหรือต่ำกว่าช่วงที่กำหนด, เหลือง = รูปแบบค่าไม่ถูกต้อง']);
-    ws.mergeCells(`A${note.number + 1}:J${note.number + 1}`);
+    ws.addRow(['สี: เขียว = อยู่ในช่วงที่กำหนด, แดง = สูงหรือต่ำกว่าช่วงที่กำหนด, เหลือง = รูปแบบค่าไม่ถูกต้อง · ชื่อในวงเล็บ = ผู้กรอก']);
+    ws.mergeCells(`A${note.number + 1}:${LAST}${note.number + 1}`);
     ws.getCell(`A${note.number + 1}`).font = { ...font, size: 11, italic: true };
 
     ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '3:4' };
@@ -813,10 +890,16 @@
   const pinMsg = document.getElementById('pinMsg');
   const pinDots = document.querySelectorAll('.pin-dots span');
 
+  const pinStep = document.querySelector('.pin-step');
+  const whoStep = document.querySelector('.who-step');
+  const whoInput = document.getElementById('whoInput');
+
   function lock(msg = '') {
     pin = '';
     sessionStorage.removeItem('grandmaPin');
     document.body.classList.add('locked');
+    pinStep.hidden = false;
+    whoStep.hidden = true;
     pinInput.value = '';
     updateDots();
     pinMsg.textContent = msg;
@@ -851,15 +934,44 @@
         return lock(r.error === 'pin' ? 'รหัสไม่ถูกต้อง ลองใหม่อีกครั้ง' : 'เกิดข้อผิดพลาด: ' + r.error);
       }
       sessionStorage.setItem('grandmaPin', pin);
-      document.body.classList.remove('locked');
-      await migrateLocal();
-      applyState();
+      pinMsg.textContent = '';
+      if (user) await unlock(); else showWho();
     } catch (e) {
       lock('เชื่อมต่อไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ต');
     } finally {
       pinInput.disabled = false;
     }
   }
+
+  async function unlock() {
+    document.getElementById('whoName').textContent = user;
+    document.body.classList.remove('locked');
+    await migrateLocal();
+    applyState();
+  }
+
+  function showWho() {
+    document.body.classList.add('locked');
+    pinStep.hidden = true;
+    whoStep.hidden = false;
+    whoInput.value = '';
+    document.getElementById('whoNames').innerHTML = names
+      .map(n => `<button type="button" class="${n === user ? '' : 'secondary'}" data-name="${esc(n)}">${esc(n)}</button>`).join('');
+    if (!names.length) setTimeout(() => whoInput.focus(), 50);
+  }
+
+  function chooseUser(name) {
+    name = name.trim().slice(0, 30);
+    if (!name) return whoInput.focus();
+    user = name;
+    localStorage.setItem('grandmaUser', user);
+    unlock();
+  }
+
+  document.getElementById('whoNames').addEventListener('click', e => { if (e.target.dataset.name) chooseUser(e.target.dataset.name); });
+  document.getElementById('whoOk').addEventListener('click', () => chooseUser(whoInput.value));
+  whoInput.addEventListener('keydown', e => { if (e.key === 'Enter') chooseUser(whoInput.value); });
+  document.getElementById('whoChange').addEventListener('click', showWho);
 
   pinInput.addEventListener('input', () => {
     pinInput.value = pinInput.value.replace(/\D/g, '').slice(0, 4);
